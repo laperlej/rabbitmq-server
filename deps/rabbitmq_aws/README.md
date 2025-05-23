@@ -8,7 +8,7 @@ A fork of [gmr/httpc-aws](https://github.com/gmr/httpc-aws) for use in building 
  
 ## Configuration
 
-Configuration for *rabbitmq-aws* is can be provided in multiple ways. It is designed
+Configuration for *rabbitmq-aws* can be provided in multiple ways. It is designed
 to behave similarly to the [AWS Command Line Interface](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html)
 with respect to providing region and configuration information. Additionally it
 has two methods, ``rabbitmq_aws:set_region/1`` and ``rabbitmq_aws:set_credentials/2``
