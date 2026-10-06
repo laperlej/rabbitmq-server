@@ -9,7 +9,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--import(util, [connect/2, connect/3,
+-import(util, [connect/2, connect/3, connect/4,
                expect_publishes/3,
                assert_message_expiry_interval/2
               ]).
@@ -17,19 +17,22 @@
 all() ->
     [
      {group, v4},
-     {group, v5}
+     {group, v5},
+     {group, cluster}
     ].
 
 groups() ->
     [
      {v4, [], sub_groups()},
-     {v5, [], sub_groups()}
+     {v5, [], sub_groups()},
+     {cluster, [], [{ra_kv_cluster, [], cluster_tests()}]}
     ].
 
 sub_groups() ->
     [
      {dets, [shuffle], tests()},
      {ets, [shuffle], tests()},
+     {ra_kv, [shuffle], ra_kv_tests()},
      {noop, [shuffle], [does_not_retain]}
     ].
 
@@ -45,6 +48,18 @@ tests() ->
      limit_max_size_bytes,
      limit_max_size_bytes_with_properties
     ].
+
+%% ra_kv exposes no key enumeration, so the backend cannot rebuild the expiry
+%% map on recovery, and ra_kv's machine state drops the entry size, so a total
+%% byte count is unavailable. The cases depending on those two capabilities are
+%% excluded rather than silently failing.
+ra_kv_tests() ->
+    tests() -- [recover_with_message_expiry_interval,
+                limit_max_size_bytes,
+                limit_max_size_bytes_with_properties].
+
+cluster_tests() ->
+    [retained_message_reaches_subscriber_on_every_node].
 
 suite() ->
     [{timetrap, {minutes, 2}}].
@@ -64,13 +79,26 @@ init_per_group(G, Config)
   when G =:= v4;
        G =:= v5 ->
     rabbit_ct_helpers:set_config(Config, {mqtt_version, G});
+init_per_group(cluster, Config) ->
+    rabbit_ct_helpers:set_config(Config, {mqtt_version, v5});
 init_per_group(Group, Config0) ->
     Suffix = rabbit_ct_helpers:testcase_absname(Config0, "", "-"),
+    %% ra_kv is the only backend that replicates, so it is the only one run on
+    %% more than one node.
+    {Mod, NodeCount} =
+        case Group of
+            ra_kv_cluster ->
+                {rabbit_mqtt_retained_msg_store_ra_kv, 3};
+            _ ->
+                {list_to_atom("rabbit_mqtt_retained_msg_store_" ++
+                                  atom_to_list(Group)), 1}
+        end,
     Config = rabbit_ct_helpers:set_config(
                Config0, [{rmq_nodename_suffix, Suffix},
-                         {start_rmq_with_plugins_disabled, true}
+                         {start_rmq_with_plugins_disabled, true},
+                         {rmq_nodes_count, NodeCount},
+                         {rmq_nodes_clustered, NodeCount > 1}
                         ]),
-    Mod = list_to_atom("rabbit_mqtt_retained_msg_store_" ++ atom_to_list(Group)),
     Env = [{rabbitmq_mqtt, [{retained_message_store, Mod}]},
            {rabbit, [
                      {default_user, "guest"},
@@ -88,7 +116,8 @@ init_per_group(Group, Config0) ->
 
 end_per_group(G, Config)
   when G =:= v4;
-       G =:= v5 ->
+       G =:= v5;
+       G =:= cluster ->
     Config;
 end_per_group(_, Config) ->
     rabbit_ct_helpers:run_teardown_steps(
@@ -180,6 +209,24 @@ does_not_retain(Config) ->
     {ok, _, _} = emqtt:subscribe(C, <<"TopicA/Device.Field">>, qos1),
     ok = expect_nothing(),
     ok = emqtt:disconnect(C).
+
+%% The point of a replicated backend: a message retained via one node must be
+%% delivered to a subscriber that lands on any other node. dets and ets fail
+%% this by design, which is why it runs only for ra_kv.
+retained_message_reaches_subscriber_on_every_node(Config) ->
+    Topic = Payload = atom_to_binary(?FUNCTION_NAME),
+    Pub = connect(<<"publisher">>, Config, 0, []),
+    {ok, _} = emqtt:publish(Pub, Topic, Payload, [{retain, true},
+                                                  {qos, 1}]),
+    ok = emqtt:disconnect(Pub),
+    lists:foreach(
+      fun(Node) ->
+              ClientId = <<"subscriber-", (integer_to_binary(Node))/binary>>,
+              C = connect(ClientId, Config, Node, []),
+              {ok, _, _} = emqtt:subscribe(C, Topic, qos1),
+              ok = expect_publishes(C, Topic, [Payload]),
+              ok = emqtt:disconnect(C)
+      end, [0, 1, 2]).
 
 recover(Config) ->
     Topic = Payload = ClientId = atom_to_binary(?FUNCTION_NAME),
