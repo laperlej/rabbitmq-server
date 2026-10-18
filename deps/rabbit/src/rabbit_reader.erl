@@ -1437,8 +1437,8 @@ is_vhost_alive(VHostPath, User) ->
     end.
 
 is_over_node_connection_limit(_RanchRef) ->
-    %% `connection_max` is now a node-wide total across all protocols, summed
-    %% from every Ranch listener, rather than this listener's own count.
+    %% connection_max is a node-wide total across all protocols, not this
+    %% listener's own count.
     case rabbit_networking:over_total_connection_limit() of
         false -> ok;
         {true, Limit} ->

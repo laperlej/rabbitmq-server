@@ -548,36 +548,36 @@ local_connections() ->
     Amqp10Pids = rabbit_amqp_reader:local_connections(),
     Amqp10Pids ++ Amqp091Pids.
 
-%% Node-wide count of client connections across every protocol and listener.
-%% Ranch tracks active_connections per listener; summing across all listeners
-%% gives the node total (AMQP 0-9-1/1.0, MQTT, STOMP, streams, and the Web/WSS
-%% listeners), which is what a universal connection cap must bound. O(number of
-%% listeners), and reuses the per-listener counters Ranch already maintains.
+%% Messaging-protocol listeners only. The management and Prometheus HTTP
+%% listeners are deliberately excluded: the connection cap never refuses them,
+%% so counting them would let monitoring traffic silently consume the client
+%% budget and refuse messaging clients while real load is below the limit.
+-define(TOTAL_LIMIT_PROTOCOLS,
+        [amqp, 'amqp/ssl',
+         mqtt, 'mqtt/ssl', 'http/web-mqtt', 'https/web-mqtt',
+         stomp, 'stomp/ssl', 'http/web-stomp', 'https/web-stomp',
+         stream, 'stream/ssl']).
+
 -spec total_connection_count() -> non_neg_integer().
 total_connection_count() ->
-    case ranch:info() of
-        Info when is_map(Info) ->
-            maps:fold(fun(_Ref, I, Acc) -> Acc + listener_active_connections(I) end,
-                      0, Info);
-        Info when is_list(Info) ->
-            lists:foldl(fun({_Ref, I}, Acc) -> Acc + listener_active_connections(I) end,
-                        0, Info)
-    end.
+    lists:foldl(fun(Protocol, Acc) -> Acc + protocol_connection_count(Protocol) end,
+                0, ?TOTAL_LIMIT_PROTOCOLS).
 
-listener_active_connections(Info) when is_map(Info) ->
-    maps:get(active_connections, Info, 0);
-listener_active_connections(Info) when is_list(Info) ->
-    proplists:get_value(active_connections, Info, 0).
+protocol_connection_count(Protocol) ->
+    lists:foldl(fun(Ref, Acc) ->
+                        #{active_connections := Count} = ranch:info(Ref),
+                        Acc + Count
+                end, 0, ranch_refs_of_protocol(Protocol)).
 
-%% Whether the node-wide connection count is over the configured ceiling.
-%% The ceiling is `connection_max`, interpreted as a node-wide total across all
-%% protocols (not a per-listener AMQP cap). `infinity` means no limit.
--spec over_total_connection_limit() -> false | {true, non_neg_integer()}.
+%% `connection_max` is interpreted as a node-wide total here, not a per-listener
+%% cap. A negative limit refuses every connection, matching the per-listener
+%% `connection_max` check in rabbit_reader.
+-spec over_total_connection_limit() -> false | {true, integer()}.
 over_total_connection_limit() ->
     case application:get_env(rabbit, connection_max, infinity) of
         infinity ->
             false;
-        Limit when is_integer(Limit), Limit >= 0 ->
+        Limit when is_integer(Limit) ->
             case total_connection_count() > Limit of
                 true -> {true, Limit};
                 false -> false

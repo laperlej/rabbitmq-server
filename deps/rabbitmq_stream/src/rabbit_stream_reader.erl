@@ -4468,7 +4468,7 @@ check_total_connection_limit() ->
         false ->
             ok;
         {true, Limit} ->
-            {error, io_lib:format("connection refused: node connection "
+            {error, io_lib:format("connection refused: total node connection "
                                   "limit (~tp) is reached", [Limit])}
     end.
 

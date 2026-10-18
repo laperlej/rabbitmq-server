@@ -1103,7 +1103,7 @@ check_total_connection_limit() ->
         false ->
             ok;
         {true, Limit} ->
-            ?LOG_ERROR("MQTT connection failed: node connection limit ~b is reached",
+            ?LOG_ERROR("MQTT connection failed: total node connection limit ~b is reached",
                        [Limit]),
             {error, ?RC_QUOTA_EXCEEDED}
     end.

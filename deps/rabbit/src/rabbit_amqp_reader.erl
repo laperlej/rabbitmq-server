@@ -1050,11 +1050,13 @@ check_vhost_alive(Vhost) ->
     end.
 
 -spec check_node_connection_limit(ranch:ref() | undefined) -> ok.
+check_node_connection_limit(undefined) ->
+    %% AMQP-over-WebSockets has no Ranch listener, so it is neither counted in
+    %% nor gated by the node-wide total.
+    ok;
 check_node_connection_limit(_RanchRef) ->
-    %% `connection_max` is now a node-wide total across all protocols. Because
-    %% the count no longer comes from this connection's Ranch listener, the
-    %% check also applies to AMQP-over-WebSockets (previously exempt for lack of
-    %% a Ranch ref), and those connections are themselves counted in the total.
+    %% connection_max is a node-wide total across all protocols, not this
+    %% listener's own count.
     case rabbit_networking:over_total_connection_limit() of
         false ->
             ok;

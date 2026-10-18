@@ -2215,7 +2215,7 @@ check_total_connection_limit() ->
         false ->
             ok;
         {true, Limit} ->
-            ?LOG_ERROR("STOMP connection failed: node connection limit ~b is reached",
+            ?LOG_ERROR("STOMP connection failed: total node connection limit ~b is reached",
                        [Limit]),
             {error, node_connection_limit_exceeded}
     end.
