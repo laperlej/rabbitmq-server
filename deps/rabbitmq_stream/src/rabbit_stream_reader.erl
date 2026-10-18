@@ -1629,6 +1629,7 @@ handle_frame_pre_auth(Transport,
     ?LOG_DEBUG("Open frame received for ~ts", [VirtualHost]),
     {Connection1, State1} =
         maybe
+            ok ?= check_total_connection_limit(),
             ok ?= check_node_connection_limit(RanchRef),
             ok ?= check_vhost_alive(VirtualHost),
             ok ?= check_vhost_connection_limit(VirtualHost),
@@ -4458,6 +4459,17 @@ retry_sac_call(Call, N) ->
             retry_sac_call(Call, N - 1);
         R ->
             R
+    end.
+
+%% Node-wide cap across all protocols (reads rabbit's connection_max via
+%% rabbit_networking), checked in addition to rabbitmq_stream.max_connections.
+check_total_connection_limit() ->
+    case rabbit_networking:over_total_connection_limit() of
+        false ->
+            ok;
+        {true, Limit} ->
+            {error, io_lib:format("connection refused: node connection "
+                                  "limit (~tp) is reached", [Limit])}
     end.
 
 check_node_connection_limit(undefined) ->
