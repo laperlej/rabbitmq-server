@@ -23,6 +23,7 @@ groups() ->
     [
      {limit_tests, [], [
                         node_connection_limit,
+                        total_node_connection_limit,
                         vhost_limit,
                         channel_consumers_limit,
                         node_channel_limit
@@ -91,6 +92,25 @@ node_connection_limit(Config) ->
     {error, not_allowed} = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0),
     close_all_connections(Connections),
 
+    set_node_limit(Config, connection_max, infinity),
+    C = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0),
+    true = is_pid(C),
+    close_all_connections([C]),
+    ok.
+
+total_node_connection_limit(Config) ->
+    %% On this version connection_max is the node-wide total across all
+    %% protocols. Validate the node-wide count and refusal.
+    set_node_limit(Config, connection_max, 5),
+    Connections = [rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0)
+                   || _ <- lists:seq(1, 5)],
+    true = lists:all(fun(E) -> is_pid(E) end, Connections),
+    %% rabbit_networking:total_connection_count/0 sums active connections across
+    %% every Ranch listener; here that is the 5 AMQP connections just opened.
+    5 = rabbit_ct_broker_helpers:rpc(Config, 0,
+                                     rabbit_networking, total_connection_count, []),
+    {error, not_allowed} = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0),
+    close_all_connections(Connections),
     set_node_limit(Config, connection_max, infinity),
     C = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0),
     true = is_pid(C),
