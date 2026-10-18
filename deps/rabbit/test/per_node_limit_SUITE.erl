@@ -23,6 +23,7 @@ groups() ->
     [
      {limit_tests, [], [
                         node_connection_limit,
+                        total_node_connection_limit,
                         vhost_limit,
                         channel_consumers_limit,
                         node_channel_limit
@@ -74,6 +75,7 @@ end_per_testcase(Testcase, Config) ->
     set_node_limit(Config, channel_max_per_node, infinity),
     set_node_limit(Config, consumer_max_per_channel, infinity),
     set_node_limit(Config, connection_max, infinity),
+    set_node_limit(Config, total_connection_max, infinity),
     rabbit_ct_helpers:testcase_finished(Config, Testcase).
 
 %% -------------------------------------------------------------------
@@ -92,6 +94,28 @@ node_connection_limit(Config) ->
     close_all_connections(Connections),
 
     set_node_limit(Config, connection_max, infinity),
+    C = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0),
+    true = is_pid(C),
+    close_all_connections([C]),
+    ok.
+
+total_node_connection_limit(Config) ->
+    %% total_connection_max caps connections node-wide across all protocols.
+    %% Leave the per-listener connection_max unlimited so only the node-wide
+    %% total can refuse, isolating the new code path.
+    set_node_limit(Config, connection_max, infinity),
+    set_node_limit(Config, total_connection_max, 5),
+    Connections = [rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0)
+                   || _ <- lists:seq(1, 5)],
+    true = lists:all(fun(E) -> is_pid(E) end, Connections),
+    %% rabbit_networking:total_connection_count/0 sums active connections across
+    %% every Ranch listener; here that is the 5 AMQP connections just opened.
+    5 = rabbit_ct_broker_helpers:rpc(Config, 0,
+                                     rabbit_networking, total_connection_count, []),
+    %% The 6th is refused by the node-wide total.
+    {error, not_allowed} = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0),
+    close_all_connections(Connections),
+    set_node_limit(Config, total_connection_max, infinity),
     C = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0),
     true = is_pid(C),
     close_all_connections([C]),
