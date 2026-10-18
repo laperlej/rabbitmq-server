@@ -250,6 +250,17 @@ end}.
     {datatype, {integer, positive}}
 ]}.
 
+%% Maximum topic length (bytes) and depth (levels) for PUBLISH topics and
+%% SUBSCRIBE topic filters. Unset means no limit.
+
+{mapping, "mqtt.max_topic_length", "rabbitmq_mqtt.max_topic_length", [
+    {datatype, {integer, positive}}
+]}.
+
+{mapping, "mqtt.max_topic_levels", "rabbitmq_mqtt.max_topic_levels", [
+    {datatype, {integer, positive}}
+]}.
+
 %% Topic Aliax Maximum
 
 {mapping, "mqtt.topic_alias_maximum", "rabbitmq_mqtt.topic_alias_maximum", [

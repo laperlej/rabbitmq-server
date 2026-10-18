@@ -439,30 +439,36 @@ process_request(?PUBLISH,
                                 cfg = #cfg{proto_ver = ProtoVer}}) ->
     case process_topic_alias_inbound(Variable, State0) of
         {ok, Topic, Props, State1} ->
-            EffectiveQos = maybe_downgrade_qos(Qos),
-            rabbit_global_counters:messages_received(ProtoVer, 1),
-            rabbit_msg_size_metrics:observe(ProtoVer, iolist_size(Payload)),
-            State = maybe_increment_publisher(State1),
-            Msg = #mqtt_msg{retain = Retain,
-                            qos = EffectiveQos,
-                            topic = Topic,
-                            dup = Dup,
-                            packet_id  = PacketId,
-                            payload = Payload,
-                            props = Props},
-            case EffectiveQos of
-                ?QOS_0 ->
-                    publish_to_queues_with_checks(Msg, State);
-                ?QOS_1 ->
-                    rabbit_global_counters:messages_received_confirm(ProtoVer, 1),
-                    case rabbit_mqtt_confirms:contains(PacketId, U) of
-                        false ->
+            case rabbit_mqtt_util:within_topic_limits(Topic) of
+                false ->
+                    send_disconnect(?RC_TOPIC_NAME_INVALID, State0),
+                    {stop, {disconnect, server_initiated}, State0};
+                true ->
+                    EffectiveQos = maybe_downgrade_qos(Qos),
+                    rabbit_global_counters:messages_received(ProtoVer, 1),
+                    rabbit_msg_size_metrics:observe(ProtoVer, iolist_size(Payload)),
+                    State = maybe_increment_publisher(State1),
+                    Msg = #mqtt_msg{retain = Retain,
+                                    qos = EffectiveQos,
+                                    topic = Topic,
+                                    dup = Dup,
+                                    packet_id  = PacketId,
+                                    payload = Payload,
+                                    props = Props},
+                    case EffectiveQos of
+                        ?QOS_0 ->
                             publish_to_queues_with_checks(Msg, State);
-                        true ->
-                            %% Client re-sent this PUBLISH packet.
-                            %% We already sent this message to target queues awaiting confirmations.
-                            %% Hence, we ignore this re-send.
-                            {ok, State}
+                        ?QOS_1 ->
+                            rabbit_global_counters:messages_received_confirm(ProtoVer, 1),
+                            case rabbit_mqtt_confirms:contains(PacketId, U) of
+                                false ->
+                                    publish_to_queues_with_checks(Msg, State);
+                                true ->
+                                    %% Client re-sent this PUBLISH packet.
+                                    %% We already sent this message to target queues awaiting confirmations.
+                                    %% Hence, we ignore this re-send.
+                                    {ok, State}
+                            end
                     end
             end;
         {error, ReasonCode} ->

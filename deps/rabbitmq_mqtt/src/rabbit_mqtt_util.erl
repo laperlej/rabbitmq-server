@@ -21,7 +21,9 @@
          init_sparkplug/0,
          mqtt_to_amqp/1,
          amqp_to_mqtt/1,
-         truncate_binary/2
+         truncate_binary/2,
+         within_topic_limits/1,
+         topic_levels/1
         ]).
 
 -define(MAX_TOPIC_TRANSLATION_CACHE_SIZE, 12).
@@ -179,5 +181,27 @@ truncate_binary(Bin, Size)
 truncate_binary(Bin, Size)
   when is_binary(Bin) ->
     binary:part(Bin, 0, Size).
+
+%% Enforces mqtt.max_topic_length (bytes) and mqtt.max_topic_levels (levels)
+%% against a raw MQTT topic name or topic filter (slash-separated, pre-translation).
+%% Either limit unset means that dimension is unbounded.
+-spec within_topic_limits(binary()) -> boolean().
+within_topic_limits(Topic) when is_binary(Topic) ->
+    within_length(Topic, persistent_term:get(?PERSISTENT_TERM_MAX_TOPIC_LENGTH, infinity)) andalso
+        within_levels(Topic, persistent_term:get(?PERSISTENT_TERM_MAX_TOPIC_LEVELS, infinity)).
+
+within_length(_Topic, infinity) ->
+    true;
+within_length(Topic, Max) ->
+    byte_size(Topic) =< Max.
+
+within_levels(_Topic, infinity) ->
+    true;
+within_levels(Topic, Max) ->
+    topic_levels(Topic) =< Max.
+
+-spec topic_levels(binary()) -> pos_integer().
+topic_levels(Topic) ->
+    length(binary:split(Topic, <<"/">>, [global])).
 
 

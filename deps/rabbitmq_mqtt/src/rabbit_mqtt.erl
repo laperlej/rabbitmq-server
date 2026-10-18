@@ -108,6 +108,16 @@ persist_static_configuration() ->
             TopicAliasMax =< ?TWO_BYTE_INTEGER_MAX),
     ok = persistent_term:put(?PERSISTENT_TERM_TOPIC_ALIAS_MAXIMUM, TopicAliasMax),
 
+    MaxTopicLength = application:get_env(?APP_NAME, max_topic_length, infinity),
+    ?assert(MaxTopicLength =:= infinity orelse
+            (is_integer(MaxTopicLength) andalso MaxTopicLength > 0)),
+    ok = persistent_term:put(?PERSISTENT_TERM_MAX_TOPIC_LENGTH, MaxTopicLength),
+
+    MaxTopicLevels = application:get_env(?APP_NAME, max_topic_levels, infinity),
+    ?assert(MaxTopicLevels =:= infinity orelse
+            (is_integer(MaxTopicLevels) andalso MaxTopicLevels > 0)),
+    ok = persistent_term:put(?PERSISTENT_TERM_MAX_TOPIC_LEVELS, MaxTopicLevels),
+
     {ok, MaxSizeUnauth} = application:get_env(?APP_NAME, max_packet_size_unauthenticated),
     assert_valid_max_packet_size(MaxSizeUnauth),
     ok = persistent_term:put(?PERSISTENT_TERM_MAX_PACKET_SIZE_UNAUTHENTICATED, MaxSizeUnauth),
