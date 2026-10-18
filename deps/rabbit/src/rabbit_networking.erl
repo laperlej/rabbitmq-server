@@ -54,7 +54,9 @@
 
 -export([
     local_connections/0,
-    local_non_amqp_connections/0
+    local_non_amqp_connections/0,
+    total_connection_count/0,
+    over_total_connection_limit/0
 ]).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
@@ -545,6 +547,44 @@ local_connections() ->
     Amqp091Pids = pg:which_groups(pg_scope_amqp091_connection()),
     Amqp10Pids = rabbit_amqp_reader:local_connections(),
     Amqp10Pids ++ Amqp091Pids.
+
+%% Node-wide count of client connections across every protocol and listener.
+%% Ranch tracks active_connections per listener; summing across all listeners
+%% gives the node total (AMQP 0-9-1/1.0, MQTT, STOMP, streams, and the Web/WSS
+%% listeners), which is what a universal connection cap must bound. O(number of
+%% listeners), and reuses the per-listener counters Ranch already maintains.
+-spec total_connection_count() -> non_neg_integer().
+total_connection_count() ->
+    case ranch:info() of
+        Info when is_map(Info) ->
+            maps:fold(fun(_Ref, I, Acc) -> Acc + listener_active_connections(I) end,
+                      0, Info);
+        Info when is_list(Info) ->
+            lists:foldl(fun({_Ref, I}, Acc) -> Acc + listener_active_connections(I) end,
+                        0, Info)
+    end.
+
+listener_active_connections(Info) when is_map(Info) ->
+    maps:get(active_connections, Info, 0);
+listener_active_connections(Info) when is_list(Info) ->
+    proplists:get_value(active_connections, Info, 0).
+
+%% Whether the node-wide connection count is over the configured ceiling.
+%% The ceiling is `connection_max`, interpreted as a node-wide total across all
+%% protocols (not a per-listener AMQP cap). `infinity` means no limit.
+-spec over_total_connection_limit() -> false | {true, non_neg_integer()}.
+over_total_connection_limit() ->
+    case application:get_env(rabbit, connection_max, infinity) of
+        infinity ->
+            false;
+        Limit when is_integer(Limit), Limit >= 0 ->
+            case total_connection_count() > Limit of
+                true -> {true, Limit};
+                false -> false
+            end;
+        _ ->
+            false
+    end.
 
 -spec register_non_amqp_connection(pid()) -> ok.
 

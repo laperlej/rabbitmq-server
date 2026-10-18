@@ -1050,24 +1050,19 @@ check_vhost_alive(Vhost) ->
     end.
 
 -spec check_node_connection_limit(ranch:ref() | undefined) -> ok.
-check_node_connection_limit(undefined) ->
-    %% AMQP-over-WebSockets connections won't have an associated Ranch listener
-    ok;
-check_node_connection_limit(RanchRef) ->
-    case application:get_env(rabbit, connection_max, infinity) of
-        infinity ->
+check_node_connection_limit(_RanchRef) ->
+    %% `connection_max` is now a node-wide total across all protocols. Because
+    %% the count no longer comes from this connection's Ranch listener, the
+    %% check also applies to AMQP-over-WebSockets (previously exempt for lack of
+    %% a Ranch ref), and those connections are themselves counted in the total.
+    case rabbit_networking:over_total_connection_limit() of
+        false ->
             ok;
-        Limit when is_integer(Limit), Limit >= 0 ->
-            #{active_connections := ActiveConns} = ranch:info(RanchRef),
-            case ActiveConns > Limit of
-                false ->
-                    ok;
-                true ->
-                    protocol_error(
-                      ?V_1_0_AMQP_ERROR_RESOURCE_LIMIT_EXCEEDED,
-                      "connection refused: node connection limit (~p) is reached",
-                      [Limit])
-            end
+        {true, Limit} ->
+            protocol_error(
+              ?V_1_0_AMQP_ERROR_RESOURCE_LIMIT_EXCEEDED,
+              "connection refused: node connection limit (~p) is reached",
+              [Limit])
     end.
 
 check_vhost_connection_limit(Vhost, Username) ->
