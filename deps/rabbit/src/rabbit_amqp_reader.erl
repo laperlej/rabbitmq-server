@@ -1050,10 +1050,6 @@ check_vhost_alive(Vhost) ->
     end.
 
 -spec check_node_connection_limit(ranch:ref() | undefined) -> ok.
-check_node_connection_limit(undefined) ->
-    %% AMQP-over-WebSockets has no Ranch listener, so it is neither counted in
-    %% nor gated by the node-wide total.
-    ok;
 check_node_connection_limit(_RanchRef) ->
     %% connection_max is a node-wide total across all protocols, not this
     %% listener's own count.

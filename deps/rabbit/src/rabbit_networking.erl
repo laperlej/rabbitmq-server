@@ -549,11 +549,11 @@ local_connections() ->
     Amqp10Pids ++ Amqp091Pids.
 
 %% Messaging-protocol listeners only. The management and Prometheus HTTP
-%% listeners are deliberately excluded: the connection cap never refuses them,
-%% so counting them would let monitoring traffic silently consume the client
-%% budget and refuse messaging clients while real load is below the limit.
+%% listeners are excluded: the cap never refuses them, so counting them would
+%% let monitoring traffic displace messaging clients while real load is below
+%% the configured limit.
 -define(TOTAL_LIMIT_PROTOCOLS,
-        [amqp, 'amqp/ssl',
+        [amqp, 'amqp/ssl', 'http/web-amqp', 'https/web-amqp',
          mqtt, 'mqtt/ssl', 'http/web-mqtt', 'https/web-mqtt',
          stomp, 'stomp/ssl', 'http/web-stomp', 'https/web-stomp',
          stream, 'stream/ssl']).
@@ -565,8 +565,15 @@ total_connection_count() ->
 
 protocol_connection_count(Protocol) ->
     lists:foldl(fun(Ref, Acc) ->
-                        #{active_connections := Count} = ranch:info(Ref),
-                        Acc + Count
+                        %% A listener can be stopped between the ETS lookup in
+                        %% ranch_refs_of_protocol/1 and this call, leaving a ref
+                        %% that ranch:info/1 rejects; a stale ref must not crash
+                        %% the connection being accepted.
+                        try ranch:info(Ref) of
+                            #{active_connections := Count} -> Acc + Count
+                        catch
+                            _:_ -> Acc
+                        end
                 end, 0, ranch_refs_of_protocol(Protocol)).
 
 %% `connection_max` is interpreted as a node-wide total here, not a per-listener

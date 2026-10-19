@@ -1629,8 +1629,8 @@ handle_frame_pre_auth(Transport,
     ?LOG_DEBUG("Open frame received for ~ts", [VirtualHost]),
     {Connection1, State1} =
         maybe
-            ok ?= check_total_connection_limit(),
             ok ?= check_node_connection_limit(RanchRef),
+            ok ?= check_total_connection_limit(),
             ok ?= check_vhost_alive(VirtualHost),
             ok ?= check_vhost_connection_limit(VirtualHost),
             ok ?= check_user_connection_limit(Username),
@@ -4461,8 +4461,8 @@ retry_sac_call(Call, N) ->
             R
     end.
 
-%% Node-wide cap across all protocols (reads rabbit's connection_max via
-%% rabbit_networking), checked in addition to rabbitmq_stream.max_connections.
+%% Node-wide `connection_max` total, enforced on top of the per-listener
+%% `rabbitmq_stream.max_connections` checked below.
 check_total_connection_limit() ->
     case rabbit_networking:over_total_connection_limit() of
         false ->

@@ -195,8 +195,8 @@ process_connect(
         ?LOG_DEBUG("MQTT connection ~s picked vhost using ~s", [ConnName0, VHostPickedUsing]),
         ok ?= check_vhost_exists(VHost, Username2, PeerIp),
         ok ?= check_vhost_alive(VHost),
-        ok ?= check_total_connection_limit(),
         ok ?= check_node_connection_limit(),
+        ok ?= check_total_connection_limit(),
         ok ?= check_vhost_connection_limit(VHost),
         {ok, User = #user{username = Username}} ?= check_user_login(VHost, Username2, Password,
                                                                     ClientId, PeerIp, ConnName0),
@@ -1096,8 +1096,8 @@ check_vhost_exists(VHost, Username, PeerIp) ->
             {error, ?RC_BAD_USER_NAME_OR_PASSWORD}
     end.
 
-%% Node-wide cap across all protocols (reads rabbit's connection_max via
-%% rabbit_networking), checked in addition to mqtt.max_connections below.
+%% Node-wide `connection_max` total, enforced on top of the per-listener
+%% `mqtt.max_connections` checked below.
 check_total_connection_limit() ->
     case rabbit_networking:over_total_connection_limit() of
         false ->
