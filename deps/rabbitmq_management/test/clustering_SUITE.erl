@@ -40,6 +40,7 @@ groups() ->
                                queues_single,
                                queues_multiple,
                                queues_removed,
+                               queue_with_stats_on_two_nodes,
                                channels_multiple_on_different_nodes,
                                channel_closed,
                                channel,
@@ -436,6 +437,88 @@ queues_removed(Config) ->
                1000, 60),
     ok.
 
+queue_with_stats_on_two_nodes(Config) ->
+    {ok, Chan} = amqp_connection:open_channel(?config(conn, Config)),
+    QName = <<"queue-with-stats-on-two-nodes">>,
+    _ = queue_declare(Chan, QName),
+    Resource = rabbit_misc:r(<<"/">>, queue, QName),
+    ?awaitMatch([{_, _}],
+                begin
+                    force_stats(Config),
+                    rabbit_ct_broker_helpers:rpc(Config, 0, ets, lookup,
+                                                 [queue_stats, Resource])
+                end,
+                30000),
+
+    ok = rabbit_ct_broker_helpers:rpc(Config, 1, sys, suspend, [rabbit_mgmt_gc]),
+    try
+        insert_queue_stats_on_node(Config, 1, Resource,
+                                   [{state, syncing}, {sync_messages, 0}]),
+        assert_queue_state_on_all_nodes(Config, <<"running">>),
+
+        {ok, Q} = rabbit_ct_broker_helpers:rpc(Config, 0, rabbit_amqqueue,
+                                               lookup, [Resource]),
+        QPid = amqqueue:get_pid(Q),
+        ok = rabbit_ct_broker_helpers:rpc(Config, 0, sys, suspend, [QPid]),
+        try
+            [{Resource, Infos, _}] = rabbit_ct_broker_helpers:rpc(
+                                       Config, 0, ets, lookup,
+                                       [queue_metrics, Resource]),
+            ok = rabbit_ct_broker_helpers:rpc(
+                   Config, 0, rabbit_core_metrics, queue_stats,
+                   [Resource,
+                    lists:keystore(state, 1, Infos, {state, {syncing, 0}})]),
+            ?awaitMatch(syncing,
+                        begin
+                            force_stats(Config),
+                            [{_, Props}] = rabbit_ct_broker_helpers:rpc(
+                                             Config, 0, ets, lookup,
+                                             [queue_stats, Resource]),
+                            proplists:get_value(state, Props)
+                        end,
+                        30000),
+            insert_queue_stats_on_node(Config, 1, Resource, [{state, running}]),
+            assert_queue_state_on_all_nodes(Config, <<"running">>)
+        after
+            rabbit_ct_broker_helpers:rpc(Config, 0, sys, resume, [QPid])
+        end
+    after
+        rabbit_ct_broker_helpers:rpc(Config, 1, sys, resume, [rabbit_mgmt_gc])
+    end,
+
+    amqp_channel:close(Chan),
+    http_delete(Config, "/queues/%2F/queue-with-stats-on-two-nodes", ?NO_CONTENT),
+    ok.
+
+%% Copies node 0's stats rows for the queue to `Node` with another `state`,
+%% as a former leader's node would have them.
+insert_queue_stats_on_node(Config, Node, Resource, StateProps) ->
+    [begin
+         [{Resource, Props}] = rabbit_ct_broker_helpers:rpc(
+                                 Config, 0, ets, lookup, [Table, Resource]),
+         Row = StateProps ++ [P || {K, _} = P <- Props,
+                                   K =/= state, K =/= sync_messages],
+         true = rabbit_ct_broker_helpers:rpc(Config, Node, ets, insert,
+                                             [Table, {Resource, Row}])
+     end || Table <- [queue_stats, queue_basic_stats]].
+
+assert_queue_state_on_all_nodes(Config, State) ->
+    Paths = ["/queues/%2F/queue-with-stats-on-two-nodes",
+             "/queues/%2F?columns=name,vhost,type,state,exclusive,auto_delete,"
+             "node,slave_nodes,synchronised_slave_nodes,leader,members,online,"
+             "messages,sync_messages&page_size=500&page=1"
+             "&name=queue-with-stats-on-two-nodes"],
+    [begin
+         rabbit_ct_broker_helpers:rpc(Config, Node, ?MODULE, purge_cache, []),
+         {ok, {{_, 200, _}, _, Body}} =
+             rabbit_mgmt_test_util:req(
+               Config, Node, get, Path,
+               [rabbit_mgmt_test_util:auth_header("guest", "guest")]),
+         {match, States} = re:run(Body, <<"\"state\":\"([a-z]*)\"">>,
+                                  [global, {capture, all_but_first, binary}]),
+         ?assertEqual({Node, Path, [[State]]}, {Node, Path, States})
+     end || Node <- [0, 1], Path <- Paths].
+
 channels_multiple_on_different_nodes(Config) ->
     Conn = rabbit_ct_client_helpers:open_unmanaged_connection(Config, 1),
     {ok, Chan} = amqp_connection:open_channel(Conn),
@@ -831,9 +914,12 @@ clear_all_table_data() ->
     [ets:delete_all_objects(T) || {T, _} <- ?CORE_TABLES,
                                   ets:info(T) =/= undefined],
     rabbit_mgmt_storage:reset(),
-    [gen_server:call(P, purge_cache)
-     || {_, P, _, _} <- supervisor:which_children(rabbit_mgmt_db_cache_sup)],
+    purge_cache(),
     send_to_all_collectors(purge_old_stats).
+
+purge_cache() ->
+    [gen_server:call(P, purge_cache)
+     || {_, P, _, _} <- supervisor:which_children(rabbit_mgmt_db_cache_sup)].
 
 get_channel_name(Config, Node) ->
     [{_, ChData}|_] = rabbit_ct_broker_helpers:rpc(Config, Node, ets, tab2list,
