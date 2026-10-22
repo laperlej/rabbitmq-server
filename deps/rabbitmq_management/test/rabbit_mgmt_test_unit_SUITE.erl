@@ -23,7 +23,8 @@ groups() ->
                                    tokenise_test,
                                    pack_binding_test,
                                    default_restrictions,
-                                   path_prefix_test
+                                   path_prefix_test,
+                                   combine_test
                                   ]}
     ].
 
@@ -106,3 +107,22 @@ assert_binding(Packed, Routing, Args) ->
         Act ->
             throw({pack, Routing, Args, expected, Packed, got, Act})
     end.
+
+combine_test(_Config) ->
+    Obj = [{name, <<"q">>}, {vhost, <<"/">>}, {state, running}],
+    Leader = [{state, syncing}, {sync_messages, 0}],
+    Stale = [{state, running}, {consumers, 0}],
+    Flow = [{state, flow}],
+    [?assertEqual([running],
+                  proplists:get_all_values(
+                    state, rabbit_mgmt_db:combine(New, Obj)))
+     || New <- [Leader,
+                Stale ++ Leader,
+                Leader ++ Stale,
+                Leader ++ Stale ++ Flow,
+                Flow ++ Stale ++ Leader]],
+    ?assertEqual([down],
+                 proplists:get_all_values(
+                   state, rabbit_mgmt_db:combine(
+                            Stale ++ Leader,
+                            lists:keystore(state, 1, Obj, {state, down})))).
