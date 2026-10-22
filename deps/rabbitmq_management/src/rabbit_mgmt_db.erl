@@ -32,6 +32,10 @@
 
 -export([submit/1, get_data_from_nodes/1]).
 
+-ifdef(TEST).
+-export([combine/2]).
+-endif.
+
 -import(rabbit_misc, [pget/3]).
 
 -type maybe_range() :: rabbit_mgmt_stats:maybe_range().
@@ -704,9 +708,10 @@ combine(New, Old) ->
     case pget(state, Old) of
         unknown -> New ++ delete_keys(NewKeys, Old);
         live    -> New ++ delete_keys([state, online | NewKeys], Old);
+        %% `New` can have a `state` from each node with a stats row.
         _       ->
-            NewKeysNoState = lists:delete(state, NewKeys),
-            lists:keydelete(state, 1, New) ++ delete_keys(NewKeysNoState, Old)
+            NewKeysNoState = [K || K <- NewKeys, K =/= state],
+            delete_keys([state], New) ++ delete_keys(NewKeysNoState, Old)
     end.
 
 delete_keys(Keys, List) ->

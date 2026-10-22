@@ -26,7 +26,8 @@ groups() ->
                                    path_prefix_test,
                                    regex_dos_test,
                                    has_json_extension_test,
-                                   sort_list_test
+                                   sort_list_test,
+                                   combine_test
                                   ]},
      {sequential_tests, [], [
                               referrer_policy_header_set_when_configured,
@@ -200,3 +201,22 @@ sort_list_test(_Config) ->
     ItemList = [{name, <<"e">>}, {tags, [<<"tag1">>, <<"tag2">>]}],
     ?assertEqual([ItemList], rabbit_mgmt_util:sort_list([ItemList], ["tags.foo"])),
     ok.
+
+combine_test(_Config) ->
+    Obj = [{name, <<"q">>}, {vhost, <<"/">>}, {state, running}],
+    Leader = [{state, syncing}, {sync_messages, 0}],
+    Stale = [{state, running}, {consumers, 0}],
+    Flow = [{state, flow}],
+    [?assertEqual([running],
+                  proplists:get_all_values(
+                    state, rabbit_mgmt_db:combine(New, Obj)))
+     || New <- [Leader,
+                Stale ++ Leader,
+                Leader ++ Stale,
+                Leader ++ Stale ++ Flow,
+                Flow ++ Stale ++ Leader]],
+    ?assertEqual([down],
+                 proplists:get_all_values(
+                   state, rabbit_mgmt_db:combine(
+                            Stale ++ Leader,
+                            lists:keystore(state, 1, Obj, {state, down})))).
