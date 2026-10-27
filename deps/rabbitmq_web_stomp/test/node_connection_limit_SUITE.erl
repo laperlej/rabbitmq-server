@@ -22,7 +22,8 @@
 all() ->
     [cross_transport_native_and_web,
      cross_transport_count_decrements,
-     web_stomp_connection_is_tracked].
+     web_stomp_connection_is_tracked,
+     total_connection_count_follows_web_stomp_clients].
 
 init_per_suite(Config) ->
     rabbit_ct_helpers:log_environment(),
@@ -83,12 +84,31 @@ web_stomp_connection_is_tracked(Config) ->
     ?assertMatch({close, _}, rfc6455_client:recv(WS, ?TIMEOUT)),
     ?awaitMatch([], tracked_stomp_connections(Config), 30_000).
 
+total_connection_count_follows_web_stomp_clients(Config) ->
+    ?awaitMatch(0, total_connection_count(Config), 30_000),
+
+    {ok, WS1} = open_web_stomp(Config),
+    ?assertEqual(1, total_connection_count(Config)),
+    close_web_stomp(WS1),
+    ?awaitMatch(0, total_connection_count(Config), 30_000),
+
+    {ok, WS2} = open_web_stomp(Config),
+    ?assertEqual(1, total_connection_count(Config)),
+    unlink(WS2),
+    exit(WS2, kill),
+    ?awaitMatch(0, total_connection_count(Config), 30_000).
+
 %% --- helpers ---
 
 tracked_stomp_connections(Config) ->
     [C || #tracked_connection{protocol = {'STOMP', _}} = C
               <- rabbit_ct_broker_helpers:rpc(
                    Config, 0, rabbit_connection_tracking, list, [])].
+
+
+total_connection_count(Config) ->
+    rabbit_ct_broker_helpers:rpc(
+      Config, 0, amq_connection_limit, count, []).
 
 set_max_connections(Config, Value) ->
     ok = rabbit_ct_broker_helpers:rpc(
