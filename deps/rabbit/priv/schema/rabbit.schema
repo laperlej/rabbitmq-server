@@ -982,14 +982,14 @@ end}.
 {mapping, "link_max_per_session", "rabbit.link_max_per_session",
  [{datatype, {integer, [{min, 1}, {max, 4294967295}]}}]}.
 
-%% Set the max permissible number of client connections per node.
-%% `infinity` means "no limit".
+%% Set the max permissible number of AMQP 0-9-1 and AMQP 1.0 client connections
+%% per node. `infinity` means "no limit".
 %%
 %% {max_connections, infinity},
 
 {mapping, "max_connections", "rabbit.connection_max",
   [{datatype, [{atom, infinity}, integer]},
-   {alias, "connection_max"}]}.
+   {aliases, ["connection_max", "amqp.max_connections"]}]}.
 
 {translation, "rabbit.connection_max",
  fun(Conf) ->
