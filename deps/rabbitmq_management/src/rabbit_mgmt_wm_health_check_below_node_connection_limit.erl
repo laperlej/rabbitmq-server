@@ -10,7 +10,7 @@
 -export([init/2]).
 -export([to_json/2, content_types_provided/2]).
 -export([variances/2]).
--export([check_connection_max_per_node/0]).
+-export([check_all_protocols_max_connections/0]).
 
 -include_lib("kernel/include/logger.hrl").
 
@@ -37,7 +37,7 @@ to_json(ReqData, Context) ->
     Limit = rabbit_misc:get_env(rabbit, connection_max, infinity),
     case ActiveConns < Limit of
         true ->
-            case check_connection_max_per_node() of
+            case check_all_protocols_max_connections() of
                 ok ->
                     rabbit_mgmt_util:reply(#{status => ok}, ReqData, Context);
                 {error, Body} ->
@@ -69,8 +69,8 @@ protocol_connection_count(Protocol) ->
               Acc + Count
       end, 0, Refs).
 
-check_connection_max_per_node() ->
-    case amq_connection_limit:at_limit() of
+check_all_protocols_max_connections() ->
+    case rabbit_all_protocols_connection_limit:at_limit() of
         false ->
             ok;
         {true, Count, Limit} ->

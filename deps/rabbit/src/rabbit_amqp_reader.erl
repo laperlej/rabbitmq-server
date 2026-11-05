@@ -1079,7 +1079,7 @@ check_node_connection_limit(RanchRef) ->
 
 -spec check_total_connection_limit() -> ok.
 check_total_connection_limit() ->
-    case amq_connection_limit:over_limit() of
+    case rabbit_all_protocols_connection_limit:over_limit() of
         false ->
             ok;
         {true, Limit} ->

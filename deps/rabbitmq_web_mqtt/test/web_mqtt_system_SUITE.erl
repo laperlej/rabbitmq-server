@@ -184,4 +184,4 @@ num_mqtt_connections(Config, Node) ->
     length(rabbit_ct_broker_helpers:rpc(Config, Node, rabbit_mqtt, local_connection_pids, [])).
 
 connection_count(Config) ->
-    rabbit_ct_broker_helpers:rpc(Config, 0, amq_connection_limit, count, []).
+    rabbit_ct_broker_helpers:rpc(Config, 0, rabbit_all_protocols_connection_limit, count, []).

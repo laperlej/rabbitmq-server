@@ -269,7 +269,7 @@ init_per_testcase(node_connection_limit = TestCase, Config) ->
     rabbit_ct_helpers:testcase_started(Config, TestCase);
 
 init_per_testcase(total_node_connection_limit = TestCase, Config) ->
-    rabbit_ct_broker_helpers:rpc(Config, 0, application, set_env, [rabbit, connection_max_per_node, 0]),
+    rabbit_ct_broker_helpers:rpc(Config, 0, application, set_env, [rabbit, all_protocols_max_connections, 0]),
     rabbit_ct_helpers:testcase_started(Config, TestCase);
 
 init_per_testcase(store_offset_requires_read_access = TestCase, Config) ->
@@ -353,7 +353,7 @@ end_per_testcase(node_connection_limit = TestCase, Config) ->
     rabbit_ct_broker_helpers:rpc(Config, 0, application, set_env, [rabbitmq_stream, max_connections, infinity]),
     rabbit_ct_helpers:testcase_finished(Config, TestCase);
 end_per_testcase(total_node_connection_limit = TestCase, Config) ->
-    rabbit_ct_broker_helpers:rpc(Config, 0, application, set_env, [rabbit, connection_max_per_node, infinity]),
+    rabbit_ct_broker_helpers:rpc(Config, 0, application, set_env, [rabbit, all_protocols_max_connections, infinity]),
     rabbit_ct_helpers:testcase_finished(Config, TestCase);
 end_per_testcase(store_offset_requires_read_access = TestCase, Config) ->
     ok = rabbit_ct_broker_helpers:delete_user(Config, <<"test">>),

@@ -110,12 +110,12 @@ node_connection_limit_shared_with_amqp091(Config) ->
 
 total_connection_limit_amqp10(Config) ->
     ?awaitMatch(0, rabbit_ct_broker_helpers:rpc(
-                     Config, 0, amq_connection_limit, count, []), 30000),
+                     Config, 0, rabbit_all_protocols_connection_limit, count, []), 30000),
     set_total_limit(Config, 1),
     C1 = open_amqp10_ok(Config),
     {refused, _} = open_amqp10(Config),
     ?awaitMatch(1, rabbit_ct_broker_helpers:rpc(
-                     Config, 0, amq_connection_limit, count, []), 30000),
+                     Config, 0, rabbit_all_protocols_connection_limit, count, []), 30000),
     set_total_limit(Config, 2),
     C2 = open_amqp10_ok(Config),
     [amqp_utils:close_connection_sync(C) || C <- [C1, C2]],
@@ -148,7 +148,7 @@ set_node_limit(Config, Limit) ->
 set_total_limit(Config, Limit) ->
     ok = rabbit_ct_broker_helpers:rpc(Config, 0,
                                       application, set_env,
-                                      [rabbit, connection_max_per_node, Limit]).
+                                      [rabbit, all_protocols_max_connections, Limit]).
 
 open_amqp10_ok(Config) ->
     {ok, Conn} = open_amqp10(Config),

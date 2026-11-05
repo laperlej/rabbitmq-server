@@ -156,7 +156,7 @@ init([KeepaliveSup,
     process_flag(trap_exit, true),
     logger:set_process_metadata(#{domain => ?RMQLOG_DOMAIN_CONN}),
     rabbit_access_control:set_max_heap_size_unauthenticated(rabbitmq_stream),
-    ok = amq_connection_limit:register_connection(),
+    ok = rabbit_all_protocols_connection_limit:register_connection(),
     {ok, Sock} =
         rabbit_networking:handshake(Ref,
                                     application:get_env(rabbitmq_stream,
@@ -4483,7 +4483,7 @@ retry_sac_call(Call, N) ->
     end.
 
 check_total_connection_limit() ->
-    case amq_connection_limit:over_limit() of
+    case rabbit_all_protocols_connection_limit:over_limit() of
         false ->
             ok;
         {true, Limit} ->

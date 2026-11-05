@@ -108,7 +108,7 @@ tracked_stomp_connections(Config) ->
 
 total_connection_count(Config) ->
     rabbit_ct_broker_helpers:rpc(
-      Config, 0, amq_connection_limit, count, []).
+      Config, 0, rabbit_all_protocols_connection_limit, count, []).
 
 set_max_connections(Config, Value) ->
     ok = rabbit_ct_broker_helpers:rpc(

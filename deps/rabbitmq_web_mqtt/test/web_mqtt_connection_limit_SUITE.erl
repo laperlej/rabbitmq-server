@@ -76,7 +76,7 @@ total_connection_limit_cross_transport(BaseConfig) ->
     ?awaitMatch(0, total_connection_count(Config), 30000),
     ok = rabbit_ct_broker_helpers:rpc(
            BaseConfig, 0, application, set_env,
-           [rabbit, connection_max_per_node, 2]),
+           [rabbit, all_protocols_max_connections, 2]),
     try
         C1 = connect(<<"plain-mqtt-total">>, BaseConfig, [{ack_timeout, 1}]),
         C2 = connect(<<"web-mqtt-total">>, Config, [{ack_timeout, 1}]),
@@ -95,7 +95,7 @@ total_connection_limit_cross_transport(BaseConfig) ->
     after
         ok = rabbit_ct_broker_helpers:rpc(
                BaseConfig, 0, application, set_env,
-               [rabbit, connection_max_per_node, infinity])
+               [rabbit, all_protocols_max_connections, infinity])
     end.
 
 total_connection_count_follows_web_mqtt_clients(BaseConfig) ->
@@ -115,4 +115,4 @@ total_connection_count_follows_web_mqtt_clients(BaseConfig) ->
 
 total_connection_count(Config) ->
     rabbit_ct_broker_helpers:rpc(
-      Config, 0, amq_connection_limit, count, []).
+      Config, 0, rabbit_all_protocols_connection_limit, count, []).

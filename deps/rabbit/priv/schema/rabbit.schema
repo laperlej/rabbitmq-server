@@ -1014,14 +1014,14 @@ end}.
 %% reconnects with the client ID of a stale connection is refused while the
 %% stale connection still counts.
 %%
-%% {connection_max_per_node, infinity},
+%% {all_protocols_max_connections, infinity},
 
-{mapping, "connection_max_per_node", "rabbit.connection_max_per_node",
+{mapping, "all.max_connections", "rabbit.all_protocols_max_connections",
   [{datatype, [{atom, infinity}, integer]}, {validators, ["non_negative_integer"]}]}.
 
-{translation, "rabbit.connection_max_per_node",
+{translation, "rabbit.all_protocols_max_connections",
  fun(Conf) ->
-  case cuttlefish:conf_get("connection_max_per_node", Conf, undefined) of
+  case cuttlefish:conf_get("all.max_connections", Conf, undefined) of
       undefined -> cuttlefish:unset();
       infinity  -> infinity;
       Val when is_integer(Val) -> Val;

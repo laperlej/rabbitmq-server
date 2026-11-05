@@ -1107,7 +1107,7 @@ check_vhost_exists(VHost, Username, PeerIp) ->
     end.
 
 check_total_connection_limit() ->
-    case amq_connection_limit:over_limit() of
+    case rabbit_all_protocols_connection_limit:over_limit() of
         false ->
             ok;
         {true, Limit} ->

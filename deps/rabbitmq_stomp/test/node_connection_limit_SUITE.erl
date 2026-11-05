@@ -212,12 +212,12 @@ set_max_connections(Config, Value) ->
            [rabbitmq_stomp, max_connections, Value]).
 
 total_connection_count(Config) ->
-    rabbit_ct_broker_helpers:rpc(Config, 0, amq_connection_limit, count, []).
+    rabbit_ct_broker_helpers:rpc(Config, 0, rabbit_all_protocols_connection_limit, count, []).
 
 set_total_limit(Config, Value) ->
     ok = rabbit_ct_broker_helpers:rpc(
            Config, 0, application, set_env,
-           [rabbit, connection_max_per_node, Value]).
+           [rabbit, all_protocols_max_connections, Value]).
 
 unset_max_connections(Config) ->
     ok = rabbit_ct_broker_helpers:rpc(

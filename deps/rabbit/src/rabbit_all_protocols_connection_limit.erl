@@ -5,9 +5,9 @@
 %% Copyright (c) 2007-2026 Broadcom. All Rights Reserved. The term “Broadcom” refers to Broadcom Inc. and/or its subsidiaries. All rights reserved.
 %%
 
-%% `connection_max_per_node': one connection limit shared by every messaging
+%% `all.max_connections': one connection limit shared by every messaging
 %% protocol on the node, counted in a node-local `pg' scope.
--module(amq_connection_limit).
+-module(rabbit_all_protocols_connection_limit).
 
 -export([start_scope/0,
          register_connection/0,
@@ -16,7 +16,7 @@
          at_limit/0]).
 
 -rabbit_boot_step({?MODULE,
-                   [{description, "local-only pg scope for connection_max_per_node"},
+                   [{description, "local-only pg scope for all.max_connections"},
                     {mfa,         {?MODULE, start_scope, []}},
                     {requires,    kernel_ready},
                     {enables,     core_initialized}]}).
@@ -80,7 +80,7 @@ at_limit() ->
     end.
 
 limit() ->
-    case application:get_env(rabbit, connection_max_per_node, infinity) of
+    case application:get_env(rabbit, all_protocols_max_connections, infinity) of
         Limit when is_integer(Limit) -> Limit;
         _ -> infinity
     end.

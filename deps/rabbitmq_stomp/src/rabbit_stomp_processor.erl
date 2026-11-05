@@ -466,7 +466,7 @@ process_connect(Implicit, Frame,
                             State);
                   %% Close the socket so the client cannot retry CONNECT on it,
                   %% and so a `stomp.max_connections' refusal does not count
-                  %% toward `connection_max_per_node' until `login_timeout'.
+                  %% toward `all.max_connections' until `login_timeout'.
                   {error, node_connection_limit_exceeded} ->
                       {stop, error_close,
                        send_error("Bad CONNECT",
@@ -2443,7 +2443,7 @@ check_vhost_access(VHost, User = #user{username = Username}, PeerIp) ->
     end.
 
 check_total_connection_limit() ->
-    case amq_connection_limit:over_limit() of
+    case rabbit_all_protocols_connection_limit:over_limit() of
         false ->
             ok;
         {true, Limit} ->

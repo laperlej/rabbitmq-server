@@ -65,8 +65,8 @@ all_tests() -> [
                 is_in_service_test,
                 below_node_connection_limit_test,
                 ready_to_serve_clients_test,
-                below_connection_max_per_node_test,
-                ready_to_serve_clients_connection_max_per_node_test,
+                below_all_protocols_max_connections_test,
+                ready_to_serve_clients_all_protocols_max_connections_test,
                 reached_target_cluster_size_test
                ].
 
@@ -774,19 +774,19 @@ ready_to_serve_clients_test(Config) ->
 
     passed.
 
-below_connection_max_per_node_test(Config) ->
-    connection_max_per_node_test(Config, "/health/checks/below-node-connection-limit").
+below_all_protocols_max_connections_test(Config) ->
+    all_protocols_max_connections_test(Config, "/health/checks/below-node-connection-limit").
 
-ready_to_serve_clients_connection_max_per_node_test(Config) ->
-    connection_max_per_node_test(Config, "/health/checks/ready-to-serve-clients").
+ready_to_serve_clients_all_protocols_max_connections_test(Config) ->
+    all_protocols_max_connections_test(Config, "/health/checks/ready-to-serve-clients").
 
-connection_max_per_node_test(Config, Path) ->
+all_protocols_max_connections_test(Config, Path) ->
     rabbit_ct_client_helpers:close_channels_and_connection(Config, 0),
     ?awaitMatch(0, rabbit_ct_broker_helpers:rpc(
-                     Config, 0, amq_connection_limit, count, []), 30000),
+                     Config, 0, rabbit_all_protocols_connection_limit, count, []), 30000),
     Limit = 3,
     rabbit_ct_broker_helpers:rpc(
-      Config, 0, application, set_env, [rabbit, connection_max_per_node, Limit]),
+      Config, 0, application, set_env, [rabbit, all_protocols_max_connections, Limit]),
     try
         Connections = [rabbit_ct_client_helpers:open_unmanaged_connection(Config, 0)
                        || _ <- lists:seq(1, Limit - 1)],
@@ -803,7 +803,7 @@ connection_max_per_node_test(Config, Path) ->
     after
         rabbit_ct_broker_helpers:close_all_connections(Config, 0, <<"test cleanup">>),
         rabbit_ct_broker_helpers:rpc(
-          Config, 0, application, set_env, [rabbit, connection_max_per_node, infinity])
+          Config, 0, application, set_env, [rabbit, all_protocols_max_connections, infinity])
     end,
     passed.
 

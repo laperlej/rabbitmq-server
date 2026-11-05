@@ -1270,7 +1270,7 @@ or:
         <td>
           Responds a 200 OK if the target node has fewer connections to the AMQP
           and AMQPS ports than the configured maximum, and fewer connections over
-          all protocols than <code>connection_max_per_node</code>, otherwise
+          all protocols than <code>all.max_connections</code>, otherwise
           responds with a 503 Service Unavailable.
         </td>
       </tr>
@@ -1294,7 +1294,7 @@ or:
             So this check will only return 200 OK if the target node is in service,
             an AMQP or AMQPS listener is available and the target node has fewer active
             AMQP and AMQPS connections than its configured limit, and fewer connections
-            over all protocols than <code>connection_max_per_node</code>.
+            over all protocols than <code>all.max_connections</code>.
           </p>
         </td>
       </tr>
