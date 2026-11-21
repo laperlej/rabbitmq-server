@@ -358,8 +358,8 @@ process_connect(Implicit, Frame,
     process_request(
       fun(StateN) ->
               Res1 = maybe
-                  ok ?= check_total_connection_limit(),
                   ok ?= check_node_connection_limit(),
+                  ok ?= check_total_connection_limit(),
                   {ok, Version} ?= negotiate_version(Frame),
                   ProtoVer = stomp_proto_ver(Version),
                   FT = frame_transformer(Version),
@@ -442,6 +442,10 @@ process_connect(Implicit, Frame,
                   {error, node_connection_limit_exceeded} ->
                       error("Bad CONNECT",
                             "Connection refused: node connection limit reached",
+                            State);
+                  {error, total_node_connection_limit_exceeded} ->
+                      error("Bad CONNECT",
+                            "Connection refused: total node connection limit reached",
                             State)
               end,
               case {Res1, Implicit} of
@@ -2208,16 +2212,16 @@ check_vhost_access(VHost, User = #user{username = Username}, PeerIp) ->
             {error, not_allowed, Username, VHost}
     end.
 
-%% Node-wide cap across all protocols (reads rabbit's connection_max via
-%% rabbit_networking), checked in addition to stomp.max_connections below.
+%% Node-wide `connection_max_per_node`, enforced on top of the per-listener
+%% `stomp.max_connections` checked below.
 check_total_connection_limit() ->
     case rabbit_networking:over_total_connection_limit() of
         false ->
             ok;
         {true, Limit} ->
-            ?LOG_ERROR("STOMP connection failed: node connection limit ~b is reached",
+            ?LOG_ERROR("STOMP connection failed: total node connection limit ~b is reached",
                        [Limit]),
-            {error, node_connection_limit_exceeded}
+            {error, total_node_connection_limit_exceeded}
     end.
 
 check_node_connection_limit() ->

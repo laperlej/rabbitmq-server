@@ -1071,9 +1071,9 @@ check_node_connection_limit(RanchRef) ->
             end
     end.
 
-%% Node-wide total across all protocols (`total_connection_max`), checked in
-%% addition to the per-listener `connection_max` above. Not gated on a Ranch
-%% ref, so it also applies to AMQP-over-WebSockets.
+%% Node-wide total across all protocols (`connection_max_per_node`), checked in
+%% addition to the per-listener `connection_max` above. Applies to
+%% AMQP-over-WebSockets, which is counted under its own Web/WSS listener.
 -spec check_total_connection_limit() -> ok.
 check_total_connection_limit() ->
     case rabbit_networking:over_total_connection_limit() of
